@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>실시간 예술작품 분류기</title>
+  <!-- TensorFlow.js 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <!-- Teachable Machine Image 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    #webcam {
+      width: 300px;
+      height: 300px;
+      border: 1px solid black;
+    }
+    .output-container {
+      margin-top: 20px;
+    }
+    .bar-container {
+      width: 300px;
+      background-color: #ddd;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 5px auto;
+    }
+    .bar {
+      height: 20px;
+      text-align: right;
+      line-height: 20px;
+      padding-right: 5px;
+      color: white;
+    }
+    .monet {
+      background-color: orange;
+    }
+    .picasso {
+      background-color: pink;
+    }
+    .van-gogh {
+      background-color: purple;
+    }
+    .error {
+      color: red;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>실시간 예술작품 분류기</h1>
+  <p>웹캠을 통해 실시간으로 작품의 스타일(모네, 피카소, 고흐)을 예측합니다.</p>
+  
+  <!-- 웹캠 화면 -->
+  <video id="webcam" autoplay playsinline></video>
+  <div class="output-container">
+    <div class="bar-container">
+      <div class="bar monet" id="monet-bar" style="width: 0%;">모네: 0%</div>
+    </div>
+    <div class="bar-container">
+      <div class="bar picasso" id="picasso-bar" style="width: 0%;">피카소: 0%</div>
+    </div>
+    <div class="bar-container">
+      <div class="bar van-gogh" id="vangogh-bar" style="width: 0%;">고흐: 0%</div>
+    </div>
+  </div>
+  <div class="error" id="error-log"></div>
+
+  <script>
+    const modelURL = "https://teachablemachine.withgoogle.com/models/3In7Bd7uU/"; // YOUR_MODEL_URL을 모델 URL로 교체
+    let model;
+    let webcamElement = document.getElementById("webcam");
+    let errorLog = document.getElementById("error-log");
+
+    // 모델 로드
+    async function loadModel() {
+      try {
+        model = await tmImage.load(modelURL + "model.json", modelURL + "metadata.json");
+        console.log("모델이 성공적으로 로드되었습니다!");
+      } catch (error) {
+        errorLog.textContent = "모델 로드 중 오류가 발생했습니다: " + error.message;
+        console.error(error);
+      }
+    }
+
+    // 웹캠 초기화
+    async function setupWebcam() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        webcamElement.srcObject = stream;
+        return new Promise((resolve) => {
+          webcamElement.onloadedmetadata = () => resolve();
+        });
+      } catch (error) {
+        errorLog.textContent = "웹캠을 로드하는 중 문제가 발생했습니다: " + error.message;
+        console.error(error);
+        alert("웹캠에 접근할 수 없습니다. 브라우저 권한을 확인하세요.");
+      }
+    }
+
+    // 예측 실행
+    async function predict() {
+      if (!model) {
+        errorLog.textContent = "모델이 아직 로드되지 않았습니다.";
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 224;
+      canvas.height = 224;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(webcamElement, 0, 0, canvas.width, canvas.height);
+
+      const prediction = await model.predict(canvas);
+
+      // 예측 결과 업데이트
+      const monetBar = document.getElementById("monet-bar");
+      const picassoBar = document.getElementById("picasso-bar");
+      const vangoghBar = document.getElementById("vangogh-bar");
+
+      prediction.forEach((p) => {
+        const percentage = (p.probability * 100).toFixed(2);
+        if (p.className === "모네") {
+          monetBar.style.width = `${percentage}%`;
+          monetBar.textContent = `모네: ${percentage}%`;
+        } else if (p.className === "피카소") {
+          picassoBar.style.width = `${percentage}%`;
+          picassoBar.textContent = `피카소: ${percentage}%`;
+        } else if (p.className === "고흐") {
+          vangoghBar.style.width = `${percentage}%`;
+          vangoghBar.textContent = `고흐: ${percentage}%`;
+        }
+      });
+    }
+
+    // 초기화
+    async function init() {
+      errorLog.textContent = "초기화 중...";
+      await loadModel();
+      await setupWebcam();
+
+      // 실시간으로 예측 반복
+      setInterval(() => {
+        predict();
+      }, 500); // 0.5초마다 예측
+    }
+
+    init();
+  </script>
+</body>
+</html>
